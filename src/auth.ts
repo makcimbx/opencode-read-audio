@@ -4,7 +4,7 @@ import { xdgConfig, xdgData } from "xdg-basedir"
 import type { OpenRouterAuth } from "./types"
 
 const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-const DEFAULT_OPENROUTER_MODEL = "xiaomi/mimo-v2.5"
+const DEFAULT_OPENROUTER_MODEL = "xiaomi/mimo-v2.6-flash"
 
 interface OpenCodeAuthData {
   openrouter?: unknown
@@ -16,6 +16,11 @@ interface OpenCodeConfig {
       options?: Record<string, unknown>
     }
   }
+}
+
+export interface OpenRouterAuthSource {
+  credential?: unknown
+  providerOptions?: Record<string, unknown>
 }
 
 export function normalizeOpenRouterBaseURL(raw?: string): string {
@@ -41,12 +46,11 @@ export function normalizeOpenRouterBaseURL(raw?: string): string {
   return url.toString().replace(/\/+$/, "")
 }
 
-export function resolveOpenRouterAuth(modelOverride?: string): OpenRouterAuth {
-  const config = loadOpenCodeConfig()
-  const providerOptions = config?.provider?.openrouter?.options
+export function resolveOpenRouterAuth(modelOverride?: string, source?: OpenRouterAuthSource): OpenRouterAuth {
+  const providerOptions = source ? source.providerOptions : loadOpenCodeConfig()?.provider?.openrouter?.options
   const apiKey =
     readString(process.env.OPENROUTER_API_KEY) ??
-    extractApiKey(loadAuthData()?.openrouter) ??
+    extractApiKey(source ? source.credential : loadAuthData()?.openrouter) ??
     readString(providerOptions?.apiKey)
   const model =
     readString(modelOverride) ??
@@ -59,7 +63,7 @@ export function resolveOpenRouterAuth(modelOverride?: string): OpenRouterAuth {
 
   if (!apiKey) {
     throw new Error(
-      "OpenRouter API key not found. Set OPENROUTER_API_KEY or configure provider.openrouter.options.apiKey in opencode config.",
+      "OpenRouter API key not found. Set OPENROUTER_API_KEY, connect OpenRouter in OpenCode, or configure the openrouter provider API key.",
     )
   }
 

@@ -12,6 +12,7 @@ export async function analyzeAudioWithOpenRouter(
   auth: OpenRouterAuth,
   prompt: string,
   audios: InputAudio[],
+  signal?: AbortSignal,
 ): Promise<string> {
   const body = {
     model: auth.model,
@@ -41,6 +42,7 @@ export async function analyzeAudioWithOpenRouter(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal,
     })
   } catch (error) {
     throw new Error(`OpenRouter request failed: ${error instanceof Error ? error.message : String(error)}`)

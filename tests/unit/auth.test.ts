@@ -77,7 +77,7 @@ describe("resolveOpenRouterAuth", () => {
     expect(resolveOpenRouterAuth()).toEqual({
       apiKey: "env-key",
       baseURL: "https://openrouter.ai/api/v1",
-      model: "xiaomi/mimo-v2.5",
+      model: "xiaomi/mimo-v2.6-flash",
     })
   })
 
@@ -132,6 +132,42 @@ describe("resolveOpenRouterAuth", () => {
       baseURL: "https://env.example/api/v1",
       model: "env/model",
     })
+  })
+
+  test("uses V2 credentials and resolved provider settings without reading legacy files", () => {
+    writeFileSync(CONFIG_FILE, "not legacy JSON")
+    process.env.OPENCODE_AUTH_CONTENT = "not legacy JSON"
+
+    expect(
+      resolveOpenRouterAuth(undefined, {
+        credential: { type: "key", key: "v2-key" },
+        providerOptions: { baseURL: "https://v2.example", model: "v2/model" },
+      }),
+    ).toEqual({ apiKey: "v2-key", baseURL: "https://v2.example/api/v1", model: "v2/model" })
+  })
+
+  test("keeps environment and tool overrides ahead of V2 credentials and settings", () => {
+    process.env.OPENROUTER_API_KEY = "env-key"
+    process.env.OPENROUTER_MODEL = "env/model"
+    process.env.OPENROUTER_BASE_URL = "https://env.example/v1"
+
+    expect(
+      resolveOpenRouterAuth("tool/model", {
+        credential: { type: "key", key: "v2-key" },
+        providerOptions: { apiKey: "settings-key", baseURL: "https://v2.example", model: "v2/model" },
+      }),
+    ).toEqual({ apiKey: "env-key", baseURL: "https://env.example/v1", model: "tool/model" })
+  })
+
+  test("uses V2 settings key when there is no active connection", () => {
+    expect(resolveOpenRouterAuth(undefined, { providerOptions: { apiKey: "settings-key" } }).apiKey).toBe(
+      "settings-key",
+    )
+  })
+
+  test("does not reuse V1 credentials when a V2 connection is absent", () => {
+    process.env.OPENCODE_AUTH_CONTENT = JSON.stringify({ openrouter: { key: "old-key" } })
+    expect(() => resolveOpenRouterAuth(undefined, {})).toThrow("OpenRouter API key not found")
   })
 
   test("throws when no API key is configured", () => {
