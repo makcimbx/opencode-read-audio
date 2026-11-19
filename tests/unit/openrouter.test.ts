@@ -44,6 +44,24 @@ describe("analyzeAudioWithOpenRouter", () => {
     })
   })
 
+  test("disables reasoning for MiMo Flash without changing the selected route variant", async () => {
+    const model = "xiaomi/mimo-v2.6-flash:nitro"
+    const fetchMock = mock(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string)
+      return Response.json({
+        choices: [
+          body.reasoning?.enabled === false
+            ? { message: { content: "Audio transcript" }, finish_reason: "stop" }
+            : { message: { content: null, reasoning: "Internal reasoning" }, finish_reason: "stop" },
+        ],
+      })
+    })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    expect(await analyzeAudioWithOpenRouter({ ...auth, model }, "Transcribe", audios)).toBe("Audio transcript")
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).model).toBe(model)
+  })
+
   test("parses array text parts", async () => {
     const fetchMock = mock(async () =>
       Response.json({ choices: [{ message: { content: [{ type: "text", text: "Part 1" }, { text: "Part 2" }] } }] }),
@@ -57,19 +75,52 @@ describe("analyzeAudioWithOpenRouter", () => {
     const fetchMock = mock(async () => new Response("upstream boom", { status: 429 }))
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
-    expect(analyzeAudioWithOpenRouter(auth, "Describe", audios)).rejects.toThrow(
+    await expect(analyzeAudioWithOpenRouter(auth, "Describe", audios)).rejects.toThrow(
       "OpenRouter request failed with status 429: upstream boom",
+    )
+  })
+
+  test.each([
+    { error: { message: "Provider disconnected" } },
+    {
+      choices: [
+        {
+          message: { content: "Partial transcript" },
+          finish_reason: "error",
+          error: { message: "Provider disconnected" },
+        },
+      ],
+    },
+  ])("surfaces provider errors embedded in HTTP 200 instead of returning partial text (%#)", async (body) => {
+    globalThis.fetch = mock(async () => Response.json(body)) as unknown as typeof fetch
+
+    await expect(analyzeAudioWithOpenRouter(auth, "Describe", audios)).rejects.toThrow(
+      /OpenRouter completion failed .*: Provider disconnected/,
+    )
+  })
+
+  test("reports diagnostics without treating reasoning as a text answer", async () => {
+    globalThis.fetch = mock(async () =>
+      Response.json({
+        id: "gen-example",
+        provider: "Example",
+        choices: [{ finish_reason: "stop", message: { content: null, reasoning: "Internal reasoning" } }],
+      }),
+    ) as unknown as typeof fetch
+
+    await expect(analyzeAudioWithOpenRouter(auth, "Describe", audios)).rejects.toThrow(
+      "OpenRouter response did not contain a text answer (model=audio/model, provider=Example, finish_reason=stop, id=gen-example)",
     )
   })
 
   test("throws for malformed JSON and empty choices", async () => {
     globalThis.fetch = mock(async () => new Response("not json")) as unknown as typeof fetch
-    expect(analyzeAudioWithOpenRouter(auth, "Describe", audios)).rejects.toThrow(
+    await expect(analyzeAudioWithOpenRouter(auth, "Describe", audios)).rejects.toThrow(
       "Failed to parse OpenRouter response JSON",
     )
 
     globalThis.fetch = mock(async () => Response.json({ choices: [] })) as unknown as typeof fetch
-    expect(analyzeAudioWithOpenRouter(auth, "Describe", audios)).rejects.toThrow(
+    await expect(analyzeAudioWithOpenRouter(auth, "Describe", audios)).rejects.toThrow(
       "OpenRouter response did not contain a text answer",
     )
   })

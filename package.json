@@ -1,6 +1,6 @@
 {
   "name": "@makcimbx/opencode-read-audio",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "OpenCode plugin for analyzing local audio files through OpenRouter audio-capable chat models.",
   "type": "module",
   "main": "./dist/index.js",

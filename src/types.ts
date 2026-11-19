@@ -25,12 +25,21 @@ export interface OpenRouterTextPart {
   text?: string
 }
 
+interface OpenRouterCompletionError {
+  message?: string
+}
+
 export interface OpenRouterChatCompletionChoice {
+  finish_reason?: string | null
+  error?: OpenRouterCompletionError
   message?: {
     content?: string | OpenRouterTextPart[] | null
   }
 }
 
 export interface OpenRouterChatCompletionResponse {
+  id?: string
+  provider?: string
+  error?: OpenRouterCompletionError
   choices?: OpenRouterChatCompletionChoice[]
 }
